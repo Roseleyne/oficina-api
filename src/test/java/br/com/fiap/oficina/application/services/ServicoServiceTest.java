@@ -99,7 +99,28 @@ class ServicoServiceTest {
     }
 
     @Test
-    @DisplayName("Deve atualizar serviço com sucesso")
+    @DisplayName("Deve atualizar serviço mantendo o mesmo nome")
+    void deveAtualizarServicoMantendoMesmoNome() {
+        Servico s = new Servico();
+        s.setId(1L);
+        s.setNome("Alinhamento");
+        s.setDescricao("Alinhamento 3D");
+        s.setPreco(new BigDecimal("120.00"));
+
+        ServicoRequestDTO req = new ServicoRequestDTO("Alinhamento", "Alinhamento 3D", new BigDecimal("120.00"));
+
+        when(servicoRepository.findById(1L)).thenReturn(Optional.of(s));
+        when(servicoRepository.save(any())).thenReturn(s);
+
+        ServicoResponseDTO response = servicoService.atualizar(1L, req);
+
+        assertNotNull(response);
+        verify(servicoRepository).save(any());
+        verify(servicoRepository, never()).existsByNomeIgnoreCase(any());
+    }
+
+    @Test
+    @DisplayName("Deve atualizar serviço com novo nome disponível")
     void deveAtualizarServicoComSucesso() {
         ServicoRequestDTO updateRequest = new ServicoRequestDTO("Alinhamento", "Alinhamento 3D", new BigDecimal("120.00"));
         when(servicoRepository.findById(1L)).thenReturn(Optional.of(servico));
@@ -113,6 +134,25 @@ class ServicoServiceTest {
     }
 
     @Test
+    @DisplayName("Deve lançar ServicoDuplicadoException ao atualizar para nome existente")
+    void deveLancarExcecaoAoAtualizarServicoComNomeDuplicado() {
+        ServicoRequestDTO updateRequest = new ServicoRequestDTO("Balanceamento", "Desc", new BigDecimal("80.00"));
+        when(servicoRepository.findById(1L)).thenReturn(Optional.of(servico));
+        when(servicoRepository.existsByNomeIgnoreCase("Balanceamento")).thenReturn(true);
+
+        assertThrows(ServicoDuplicadoException.class, () -> servicoService.atualizar(1L, updateRequest));
+        verify(servicoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve lançar ServicoNaoEncontradoException ao atualizar serviço inexistente")
+    void deveLancarExcecaoAoAtualizarServicoInexistente() {
+        when(servicoRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ServicoNaoEncontradoException.class, () -> servicoService.atualizar(99L, requestDTO));
+    }
+
+    @Test
     @DisplayName("Deve excluir serviço com sucesso")
     void deveExcluirServicoComSucesso() {
         when(servicoRepository.findById(1L)).thenReturn(Optional.of(servico));
@@ -120,5 +160,14 @@ class ServicoServiceTest {
         servicoService.excluir(1L);
 
         verify(servicoRepository).delete(servico);
+    }
+
+    @Test
+    @DisplayName("Deve lançar ServicoNaoEncontradoException ao excluir serviço inexistente")
+    void deveLancarExcecaoAoExcluirServicoInexistente() {
+        when(servicoRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ServicoNaoEncontradoException.class, () -> servicoService.excluir(99L));
+        verify(servicoRepository, never()).delete(any());
     }
 }

@@ -114,6 +114,14 @@ class VeiculoServiceTest {
     }
 
     @Test
+    @DisplayName("Deve lançar VeiculoNaoEncontradoException ao buscar por ID inexistente")
+    void deveLancarExcecaoAoBuscarVeiculoInexistentePorId() {
+        when(veiculoRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(VeiculoNaoEncontradoException.class, () -> veiculoService.buscarPorId(99L));
+    }
+
+    @Test
     @DisplayName("Deve buscar veículos por cliente ID")
     void deveBuscarVeiculosPorCliente() {
         when(clienteRepository.existsById(1L)).thenReturn(true);
@@ -122,6 +130,76 @@ class VeiculoServiceTest {
         List<VeiculoResponseDTO> lista = veiculoService.buscarPorCliente(1L);
 
         assertEquals(1, lista.size());
+    }
+
+    @Test
+    @DisplayName("Deve lançar ClienteNaoEncontradoException ao buscar veículos de cliente inexistente")
+    void deveLancarExcecaoAoBuscarVeiculosClienteInexistente() {
+        when(clienteRepository.existsById(99L)).thenReturn(false);
+
+        assertThrows(ClienteNaoEncontradoException.class, () -> veiculoService.buscarPorCliente(99L));
+    }
+
+    @Test
+    @DisplayName("Deve atualizar veículo mantendo a mesma placa")
+    void deveAtualizarVeiculoMantendoMesmaPlaca() {
+        when(veiculoRepository.findById(10L)).thenReturn(Optional.of(veiculo));
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(cliente));
+        when(veiculoRepository.save(veiculo)).thenReturn(veiculo);
+
+        VeiculoResponseDTO response = veiculoService.atualizar(10L, requestDTO);
+
+        assertNotNull(response);
+        verify(veiculoRepository).save(veiculo);
+    }
+
+    @Test
+    @DisplayName("Deve atualizar veículo com nova placa válida")
+    void deveAtualizarVeiculoComNovaPlacaValida() {
+        VeiculoRequestDTO updateDTO = new VeiculoRequestDTO("NEW1A23", "Chevrolet", "Onix Plus", 2024, 1L);
+
+        when(veiculoRepository.findById(10L)).thenReturn(Optional.of(veiculo));
+        when(veiculoRepository.existsByPlaca("NEW1A23")).thenReturn(false);
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(cliente));
+        when(veiculoRepository.save(veiculo)).thenReturn(veiculo);
+
+        VeiculoResponseDTO response = veiculoService.atualizar(10L, updateDTO);
+
+        assertNotNull(response);
+        assertEquals("NEW1A23", veiculo.getPlaca());
+        assertEquals("Onix Plus", veiculo.getModelo());
+        verify(veiculoRepository).save(veiculo);
+    }
+
+    @Test
+    @DisplayName("Deve lançar VeiculoDuplicadoException ao atualizar para placa já existente")
+    void deveLancarExcecaoAoAtualizarParaPlacaExistente() {
+        VeiculoRequestDTO updateDTO = new VeiculoRequestDTO("NEW1A23", "Chevrolet", "Onix Plus", 2024, 1L);
+
+        when(veiculoRepository.findById(10L)).thenReturn(Optional.of(veiculo));
+        when(veiculoRepository.existsByPlaca("NEW1A23")).thenReturn(true);
+
+        assertThrows(VeiculoDuplicadoException.class, () -> veiculoService.atualizar(10L, updateDTO));
+        verify(veiculoRepository, never()).save(veiculo);
+    }
+
+    @Test
+    @DisplayName("Deve lançar VeiculoNaoEncontradoException ao atualizar veículo inexistente")
+    void deveLancarExcecaoAoAtualizarVeiculoInexistente() {
+        when(veiculoRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(VeiculoNaoEncontradoException.class, () -> veiculoService.atualizar(99L, requestDTO));
+    }
+
+    @Test
+    @DisplayName("Deve lançar ClienteNaoEncontradoException ao atualizar veículo com cliente inexistente")
+    void deveLancarExcecaoAoAtualizarVeiculoComClienteInexistente() {
+        VeiculoRequestDTO updateDTO = new VeiculoRequestDTO("BRA2E19", "Chevrolet", "Onix", 2023, 99L);
+
+        when(veiculoRepository.findById(10L)).thenReturn(Optional.of(veiculo));
+        when(clienteRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ClienteNaoEncontradoException.class, () -> veiculoService.atualizar(10L, updateDTO));
     }
 
     @Test
