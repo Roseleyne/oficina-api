@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oficina-config
+  namespace: oficina
+data:
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/oficina"
+  SPRING_JPA_SHOW_SQL: "false"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
