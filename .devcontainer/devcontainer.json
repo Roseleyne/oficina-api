@@ -1,13 +1,22 @@
+cat > .devcontainer/devcontainer.json <<'EOF'
 {
   "name": "oficina-api",
-  "image": "mcr.microsoft.com/devcontainers/java:1-21-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": { "minikube": "none" },
-    "ghcr.io/devcontainers/features/terraform:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "21",
+      "jdkDistro": "tem",
+      "installMaven": "true"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    },
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "minikube": "none"
+    },
+    "ghcr.io/devcontainers/features/terraform:1": {}
   },
-  "postCreateCommand": "curl -Lo /tmp/kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64 && sudo install /tmp/kind /usr/local/bin/kind && chmod +x mvnw",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
   "forwardPorts": [8080, 8025],
   "hostRequirements": { "cpus": 2, "memory": "8gb" },
   "customizations": {
@@ -22,3 +31,4 @@
     }
   }
 }
+EOF
