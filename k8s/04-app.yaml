@@ -44,15 +44,18 @@ spec:
               cpu: "500m"
               memory: "768Mi"
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health/liveness
               port: 8080
             periodSeconds: 5
             failureThreshold: 36
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health/readiness
               port: 8080
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health/liveness
               port: 8080
             periodSeconds: 20
