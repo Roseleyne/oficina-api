@@ -1,4 +1,3 @@
-cat > .devcontainer/devcontainer.json <<'EOF'
 {
   "name": "oficina-api",
   "image": "mcr.microsoft.com/devcontainers/base:bookworm",
@@ -31,4 +30,3 @@ cat > .devcontainer/devcontainer.json <<'EOF'
     }
   }
 }
-EOF
