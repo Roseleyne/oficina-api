@@ -6,6 +6,7 @@ import br.com.fiap.oficina.interfaces.dtos.AdicionarServicoOSDTO;
 import br.com.fiap.oficina.interfaces.dtos.AtualizarStatusOSDTO;
 import br.com.fiap.oficina.interfaces.dtos.OrdemServicoRequestDTO;
 import br.com.fiap.oficina.interfaces.dtos.OrdemServicoResponseDTO;
+import br.com.fiap.oficina.interfaces.dtos.StatusOrdemServicoResponseDTO;
 import br.com.fiap.oficina.interfaces.dtos.TempoMedioExecucaoDTO;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -48,6 +49,15 @@ public class OrdemServicoController {
 
         return ResponseEntity.ok(
                 ordemServicoService.listarTodas()
+        );
+    }
+
+    @GetMapping("/{id}/status")
+    public ResponseEntity<StatusOrdemServicoResponseDTO> consultarStatus(
+            @PathVariable Long id) {
+
+        return ResponseEntity.ok(
+                ordemServicoService.consultarStatus(id)
         );
     }
 
