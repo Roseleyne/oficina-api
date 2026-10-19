@@ -14,8 +14,12 @@ kind get clusters | grep -qx "$CLUSTER" || { echo "Cluster nao encontrado. Rode:
 kubectl get secret oficina-secret -n "$NAMESPACE" >/dev/null
 kubectl -n "$NAMESPACE" rollout status statefulset/postgres --timeout=180s
 
-echo ">> [2/5] Build da imagem $IMAGE"
-docker build -t "$IMAGE" .
+if [ "${SKIP_BUILD:-false}" = "true" ]; then
+  echo ">> [2/5] Build ignorado (SKIP_BUILD=true): usando imagem $IMAGE ja existente"
+else
+  echo ">> [2/5] Build da imagem $IMAGE"
+  docker build -t "$IMAGE" .
+fi
 
 echo ">> [3/5] Carregando imagem no cluster"
 kind load docker-image "$IMAGE" --name "$CLUSTER" || { echo "kind load falhou; importando direto no containerd do no"; docker save "$IMAGE" -o /tmp/oficina-api.tar && docker cp /tmp/oficina-api.tar "$CLUSTER-control-plane":/oficina-api.tar && docker exec "$CLUSTER-control-plane" ctr -n k8s.io images import /oficina-api.tar; }
