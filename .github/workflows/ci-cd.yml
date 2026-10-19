@@ -1,0 +1,147 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, fase-2]
+  pull_request:
+    branches: [main, fase-2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CLUSTER_NAME: oficina
+  NAMESPACE: oficina
+
+jobs:
+  # 1) Build da aplicacao + testes automatizados
+  build-test:
+    name: Build e testes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build + testes (unitarios e integracao) + cobertura
+        run: ./mvnw -B clean verify
+
+      - name: Publicar relatorio de cobertura (JaCoCo)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco
+          if-no-files-found: ignore
+
+  # 2) Build da imagem Docker (push para o GHCR apenas em push na branch)
+  docker:
+    name: Imagem Docker
+    runs-on: ubuntu-latest
+    needs: build-test
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Nome da imagem (GHCR exige minusculas)
+        id: meta
+        run: |
+          REPO="${GITHUB_REPOSITORY,,}"
+          echo "image=ghcr.io/${REPO}:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "latest=ghcr.io/${REPO}:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Login no GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (e push) da imagem
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ${{ steps.meta.outputs.latest }}
+
+  # 3) Provisiona cluster + banco (Terraform) e faz o deploy no Kubernetes
+  deploy:
+    name: Deploy no Kubernetes (kind + Terraform)
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: kind CLI
+        run: |
+          curl -fsSLo /tmp/kind https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64
+          sudo install -m 0755 /tmp/kind /usr/local/bin/kind
+          kind version
+
+      - name: Provisionar cluster Kubernetes + banco de dados (terraform apply)
+        working-directory: infra
+        run: |
+          terraform init -input=false
+          terraform validate
+          terraform apply -auto-approve -input=false
+          terraform output
+
+      - name: Configurar kubectl
+        run: |
+          kind export kubeconfig --name "$CLUSTER_NAME"
+          kubectl get nodes
+          kubectl get pods,pvc -n "$NAMESPACE"
+
+      - name: Baixar a imagem publicada no GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull "${{ needs.docker.outputs.image }}"
+
+      - name: Aplicar manifestos e publicar a aplicacao
+        env:
+          IMAGE: ${{ needs.docker.outputs.image }}
+          SKIP_BUILD: "true"
+        run: bash scripts/deploy-app.sh
+
+      - name: Verificar saude da aplicacao
+        run: |
+          kubectl port-forward svc/oficina-api 8080:80 -n "$NAMESPACE" >/tmp/pf.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/actuator/health; then
+              echo; echo "Aplicacao saudavel"; break
+            fi
+            sleep 5
+          done
+          curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"'
+          kubectl get pods,svc,hpa -n "$NAMESPACE"
+
+      - name: Diagnostico em caso de falha
+        if: failure()
+        run: |
+          kubectl get all -n "$NAMESPACE" || true
+          kubectl describe pods -n "$NAMESPACE" || true
+          kubectl logs -n "$NAMESPACE" deploy/oficina-api --tail=100 || true
