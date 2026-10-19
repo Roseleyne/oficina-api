@@ -68,6 +68,22 @@ class OrdemServicoControllerTest {
     }
 
     @Test
+    @DisplayName("Deve retornar 200 OK ao consultar o status da ordem de serviço")
+    void deveRetornar200AoConsultarStatus() {
+        StatusOrdemServicoResponseDTO statusDTO = new StatusOrdemServicoResponseDTO(
+                1L, StatusOrdemServico.EM_EXECUCAO, "Em execução",
+                LocalDateTime.now(), LocalDateTime.now(), null);
+        when(ordemServicoService.consultarStatus(1L)).thenReturn(statusDTO);
+
+        ResponseEntity<StatusOrdemServicoResponseDTO> response = ordemServicoController.consultarStatus(1L);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(StatusOrdemServico.EM_EXECUCAO, response.getBody().status());
+        assertEquals("Em execução", response.getBody().descricaoStatus());
+    }
+
+    @Test
     @DisplayName("Deve retornar 200 OK ao listar todas as ordens de serviço")
     void deveRetornar200AoListarTodas() {
         when(ordemServicoService.listarTodas()).thenReturn(List.of(responseDTO));

@@ -20,6 +20,7 @@ import br.com.fiap.oficina.interfaces.dtos.OrdemServicoPecaResponseDTO;
 import br.com.fiap.oficina.interfaces.dtos.OrdemServicoRequestDTO;
 import br.com.fiap.oficina.interfaces.dtos.OrdemServicoResponseDTO;
 import br.com.fiap.oficina.interfaces.dtos.OrdemServicoServicoResponseDTO;
+import br.com.fiap.oficina.interfaces.dtos.StatusOrdemServicoResponseDTO;
 import br.com.fiap.oficina.interfaces.dtos.TempoMedioExecucaoDTO;
 import br.com.fiap.oficina.interfaces.exceptions.EstoqueInsuficienteException;
 import br.com.fiap.oficina.interfaces.exceptions.OrdemServicoNaoEncontradaException;
@@ -111,6 +112,24 @@ public class OrdemServicoService {
                 .sorted(ORDENACAO_LISTAGEM)
                 .map(this::converterParaResponse)
                 .toList();
+    }
+
+    /**
+     * Consulta a situacao atual de uma Ordem de Servico.
+     */
+    public StatusOrdemServicoResponseDTO consultarStatus(Long id) {
+
+        OrdemServico ordemServico =
+                buscarEntidadePorId(id);
+
+        return new StatusOrdemServicoResponseDTO(
+                ordemServico.getId(),
+                ordemServico.getStatus(),
+                ordemServico.getStatus().getDescricao(),
+                ordemServico.getDataAbertura(),
+                ordemServico.getDataInicioExecucao(),
+                ordemServico.getDataFinalizacao()
+        );
     }
 
     public OrdemServicoResponseDTO buscarPorId(Long id) {

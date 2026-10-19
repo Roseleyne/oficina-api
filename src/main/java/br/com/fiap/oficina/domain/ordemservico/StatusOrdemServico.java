@@ -13,19 +13,25 @@ package br.com.fiap.oficina.domain.ordemservico;
  */
 public enum StatusOrdemServico {
 
-    RECEBIDA(5),
-    EM_DIAGNOSTICO(4),
-    AGUARDANDO_APROVACAO(3),
-    APROVADA(2),
-    EM_EXECUCAO(1),
-    FINALIZADA(null),
-    ENTREGUE(null),
-    CANCELADA(null);
+    RECEBIDA(5, "Recebida"),
+    EM_DIAGNOSTICO(4, "Em diagnóstico"),
+    AGUARDANDO_APROVACAO(3, "Aguardando aprovação"),
+    APROVADA(2, "Aprovada"),
+    EM_EXECUCAO(1, "Em execução"),
+    FINALIZADA(null, "Finalizada"),
+    ENTREGUE(null, "Entregue"),
+    CANCELADA(null, "Cancelada");
 
     private final Integer prioridadeListagem;
+    private final String descricao;
 
-    StatusOrdemServico(Integer prioridadeListagem) {
+    StatusOrdemServico(Integer prioridadeListagem, String descricao) {
         this.prioridadeListagem = prioridadeListagem;
+        this.descricao = descricao;
+    }
+
+    public String getDescricao() {
+        return descricao;
     }
 
     public boolean isExibidoNaListagem() {

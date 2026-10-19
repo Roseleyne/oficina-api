@@ -185,6 +185,29 @@ class OrdemServicoServiceTest {
     }
 
     @Test
+    @DisplayName("Status: deve retornar a situação atual da OS")
+    void deveConsultarStatusDaOrdemServico() {
+        ordemServico.setStatus(StatusOrdemServico.AGUARDANDO_APROVACAO);
+        when(ordemServicoRepository.findById(1L)).thenReturn(Optional.of(ordemServico));
+
+        StatusOrdemServicoResponseDTO status = ordemServicoService.consultarStatus(1L);
+
+        assertEquals(1L, status.id());
+        assertEquals(StatusOrdemServico.AGUARDANDO_APROVACAO, status.status());
+        assertEquals("Aguardando aprovação", status.descricaoStatus());
+        assertEquals(ordemServico.getDataAbertura(), status.dataAbertura());
+    }
+
+    @Test
+    @DisplayName("Status: deve lançar exceção quando a OS não existe")
+    void deveLancarExcecaoAoConsultarStatusDeOrdemInexistente() {
+        when(ordemServicoRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(OrdemServicoNaoEncontradaException.class,
+                () -> ordemServicoService.consultarStatus(99L));
+    }
+
+    @Test
     @DisplayName("Deve listar todas as ordens de serviço")
     void deveListarTodasAsOrdensServico() {
         when(ordemServicoRepository.findByStatusIn(anyCollection())).thenReturn(List.of(ordemServico));
