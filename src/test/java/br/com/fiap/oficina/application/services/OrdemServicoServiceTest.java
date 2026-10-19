@@ -52,6 +52,9 @@ class OrdemServicoServiceTest {
     @Mock
     private OrdemServicoPecaRepository ordemServicoPecaRepository;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private OrdemServicoService ordemServicoService;
 
@@ -241,6 +244,45 @@ class OrdemServicoServiceTest {
         assertThrows(StatusOrdemServicoInvalidoException.class,
                 () -> ordemServicoService.processarDecisaoOrcamento(1L, true));
         verify(ordemServicoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Notificação: mudança de status publica evento com dados do cliente")
+    void devePublicarEventoAoAtualizarStatus() {
+        when(ordemServicoRepository.findById(1L)).thenReturn(Optional.of(ordemServico));
+        when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ordemServicoService.atualizarStatus(1L, new AtualizarStatusOSDTO(StatusOrdemServico.EM_DIAGNOSTICO));
+
+        verify(eventPublisher).publishEvent(new br.com.fiap.oficina.domain.ordemservico.OrdemServicoStatusAlteradoEvent(
+                1L, StatusOrdemServico.EM_DIAGNOSTICO, "Maria Silva", "maria@email.com", "ABC1D23"));
+    }
+
+    @Test
+    @DisplayName("Notificação: abertura da OS publica evento com status RECEBIDA")
+    void devePublicarEventoAoCriarOrdem() {
+        when(veiculoRepository.findById(1L)).thenReturn(Optional.of(veiculo));
+        when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> {
+            OrdemServico os = inv.getArgument(0);
+            os.setId(5L);
+            return os;
+        });
+
+        ordemServicoService.criar(new OrdemServicoRequestDTO(1L, "Revisão"));
+
+        verify(eventPublisher).publishEvent(new br.com.fiap.oficina.domain.ordemservico.OrdemServicoStatusAlteradoEvent(
+                5L, StatusOrdemServico.RECEBIDA, "Maria Silva", "maria@email.com", "ABC1D23"));
+    }
+
+    @Test
+    @DisplayName("Notificação: transição inválida não publica evento")
+    void naoDevePublicarEventoEmTransicaoInvalida() {
+        when(ordemServicoRepository.findById(1L)).thenReturn(Optional.of(ordemServico));
+
+        assertThrows(StatusOrdemServicoInvalidoException.class, () ->
+                ordemServicoService.atualizarStatus(1L, new AtualizarStatusOSDTO(StatusOrdemServico.ENTREGUE)));
+
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test

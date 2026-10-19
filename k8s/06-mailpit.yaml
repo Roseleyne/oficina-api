@@ -1,0 +1,45 @@
+# Mailpit: servidor SMTP de testes com interface web para visualizar os e-mails
+# SMTP: mailpit:1025  |  Web: kubectl port-forward svc/mailpit 8025:8025 -n oficina
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  namespace: oficina
+spec:
+  selector:
+    app: mailpit
+  ports:
+    - name: smtp
+      port: 1025
+      targetPort: 1025
+    - name: web
+      port: 8025
+      targetPort: 8025
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  namespace: oficina
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mailpit
+  template:
+    metadata:
+      labels:
+        app: mailpit
+    spec:
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:v1.21
+          ports:
+            - containerPort: 1025
+            - containerPort: 8025
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              memory: "64Mi"

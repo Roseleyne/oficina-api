@@ -30,9 +30,20 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       WEBHOOK_TOKEN: ${WEBHOOK_TOKEN:-dev-webhook-token}
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: oficina-mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
 
 volumes:
   oficina_postgres_data:

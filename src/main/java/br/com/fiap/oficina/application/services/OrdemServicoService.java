@@ -3,6 +3,7 @@ package br.com.fiap.oficina.application.services;
 import br.com.fiap.oficina.domain.ordemservico.OrdemServico;
 import br.com.fiap.oficina.domain.ordemservico.OrdemServicoPeca;
 import br.com.fiap.oficina.domain.ordemservico.OrdemServicoServico;
+import br.com.fiap.oficina.domain.ordemservico.OrdemServicoStatusAlteradoEvent;
 import br.com.fiap.oficina.domain.ordemservico.StatusOrdemServico;
 import br.com.fiap.oficina.domain.peca.Peca;
 import br.com.fiap.oficina.domain.servico.Servico;
@@ -28,6 +29,7 @@ import br.com.fiap.oficina.interfaces.exceptions.PecaNaoEncontradaException;
 import br.com.fiap.oficina.interfaces.exceptions.ServicoNaoEncontradoException;
 import br.com.fiap.oficina.interfaces.exceptions.StatusOrdemServicoInvalidoException;
 import br.com.fiap.oficina.interfaces.exceptions.VeiculoNaoEncontradoException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +54,7 @@ public class OrdemServicoService {
     private final PecaRepository pecaRepository;
     private final OrdemServicoServicoRepository ordemServicoServicoRepository;
     private final OrdemServicoPecaRepository ordemServicoPecaRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OrdemServicoService(
             OrdemServicoRepository ordemServicoRepository,
@@ -59,7 +62,8 @@ public class OrdemServicoService {
             ServicoRepository servicoRepository,
             PecaRepository pecaRepository,
             OrdemServicoServicoRepository ordemServicoServicoRepository,
-            OrdemServicoPecaRepository ordemServicoPecaRepository) {
+            OrdemServicoPecaRepository ordemServicoPecaRepository,
+            ApplicationEventPublisher eventPublisher) {
 
         this.ordemServicoRepository = ordemServicoRepository;
         this.veiculoRepository = veiculoRepository;
@@ -67,6 +71,7 @@ public class OrdemServicoService {
         this.pecaRepository = pecaRepository;
         this.ordemServicoServicoRepository = ordemServicoServicoRepository;
         this.ordemServicoPecaRepository = ordemServicoPecaRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public OrdemServicoResponseDTO criar(
@@ -90,6 +95,8 @@ public class OrdemServicoService {
 
         OrdemServico salva =
                 ordemServicoRepository.save(ordemServico);
+
+        eventPublisher.publishEvent(OrdemServicoStatusAlteradoEvent.de(salva));
 
         return converterParaResponse(salva);
     }
@@ -333,6 +340,8 @@ public class OrdemServicoService {
 
         OrdemServico atualizada =
                 ordemServicoRepository.save(ordemServico);
+
+        eventPublisher.publishEvent(OrdemServicoStatusAlteradoEvent.de(atualizada));
 
         return converterParaResponse(atualizada);
     }
