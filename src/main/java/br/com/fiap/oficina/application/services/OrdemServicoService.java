@@ -33,10 +33,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
 public class OrdemServicoService {
+
+    private static final Comparator<OrdemServico> ORDENACAO_LISTAGEM =
+            Comparator.comparingInt((OrdemServico os) -> os.getStatus().getPrioridadeListagem())
+                    .thenComparing(OrdemServico::getDataAbertura,
+                            Comparator.nullsLast(Comparator.naturalOrder()));
 
     private final OrdemServicoRepository ordemServicoRepository;
     private final VeiculoRepository veiculoRepository;
@@ -86,10 +93,22 @@ public class OrdemServicoService {
         return converterParaResponse(salva);
     }
 
+    /**
+     * Lista as ordens de servico ativas, ordenadas por prioridade de status
+     * (Em Execucao > Aprovada > Aguardando Aprovacao > Diagnostico > Recebida)
+     * e, dentro do mesmo status, das mais antigas para as mais recentes.
+     * OS finalizadas, entregues ou canceladas nao sao exibidas
+     * (exclusao logica: os registros permanecem no banco).
+     */
     public List<OrdemServicoResponseDTO> listarTodas() {
 
-        return ordemServicoRepository.findAll()
+        List<StatusOrdemServico> statusExibidos = Arrays.stream(StatusOrdemServico.values())
+                .filter(StatusOrdemServico::isExibidoNaListagem)
+                .toList();
+
+        return ordemServicoRepository.findByStatusIn(statusExibidos)
                 .stream()
+                .sorted(ORDENACAO_LISTAGEM)
                 .map(this::converterParaResponse)
                 .toList();
     }

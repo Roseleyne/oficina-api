@@ -28,6 +28,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -119,10 +120,74 @@ class OrdemServicoServiceTest {
         verify(ordemServicoRepository, never()).save(any());
     }
 
+    private OrdemServico novaOrdem(Long id, StatusOrdemServico status, LocalDateTime dataAbertura) {
+        OrdemServico os = new OrdemServico();
+        os.setId(id);
+        os.setVeiculo(veiculo);
+        os.setDescricaoProblema("OS " + id);
+        os.setStatus(status);
+        os.setValorTotal(BigDecimal.ZERO);
+        os.setDataAbertura(dataAbertura);
+        return os;
+    }
+
+    @Test
+    @DisplayName("Listagem: deve ordenar por prioridade de status e, no mesmo status, das mais antigas para as mais novas")
+    void deveOrdenarListagemPorPrioridadeDeStatusEDataDeAbertura() {
+        LocalDateTime base = LocalDateTime.of(2026, 10, 1, 8, 0);
+
+        List<OrdemServico> doBanco = List.of(
+                novaOrdem(1L, StatusOrdemServico.RECEBIDA, base.plusHours(1)),
+                novaOrdem(2L, StatusOrdemServico.EM_DIAGNOSTICO, base.plusHours(2)),
+                novaOrdem(3L, StatusOrdemServico.EM_EXECUCAO, base.plusHours(5)),
+                novaOrdem(4L, StatusOrdemServico.AGUARDANDO_APROVACAO, base.plusHours(3)),
+                novaOrdem(5L, StatusOrdemServico.EM_EXECUCAO, base.plusHours(4)),
+                novaOrdem(6L, StatusOrdemServico.RECEBIDA, base),
+                novaOrdem(7L, StatusOrdemServico.APROVADA, base.plusHours(6))
+        );
+
+        when(ordemServicoRepository.findByStatusIn(anyCollection())).thenReturn(doBanco);
+
+        List<Long> idsOrdenados = ordemServicoService.listarTodas()
+                .stream()
+                .map(OrdemServicoResponseDTO::id)
+                .toList();
+
+        // EM_EXECUCAO (5 mais antiga, 3) > APROVADA (7) > AGUARDANDO_APROVACAO (4)
+        // > EM_DIAGNOSTICO (2) > RECEBIDA (6 mais antiga, 1)
+        assertEquals(List.of(5L, 3L, 7L, 4L, 2L, 6L, 1L), idsOrdenados);
+    }
+
+    @Test
+    @DisplayName("Listagem: deve consultar somente status ativos, excluindo Finalizada, Entregue e Cancelada")
+    @SuppressWarnings("unchecked")
+    void deveConsultarSomenteStatusAtivosNaListagem() {
+        when(ordemServicoRepository.findByStatusIn(anyCollection())).thenReturn(List.of());
+
+        ordemServicoService.listarTodas();
+
+        org.mockito.ArgumentCaptor<java.util.Collection<StatusOrdemServico>> captor =
+                org.mockito.ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(ordemServicoRepository).findByStatusIn(captor.capture());
+
+        java.util.Collection<StatusOrdemServico> consultados = captor.getValue();
+
+        assertTrue(consultados.containsAll(List.of(
+                StatusOrdemServico.RECEBIDA,
+                StatusOrdemServico.EM_DIAGNOSTICO,
+                StatusOrdemServico.AGUARDANDO_APROVACAO,
+                StatusOrdemServico.APROVADA,
+                StatusOrdemServico.EM_EXECUCAO)));
+        assertFalse(consultados.contains(StatusOrdemServico.FINALIZADA));
+        assertFalse(consultados.contains(StatusOrdemServico.ENTREGUE));
+        assertFalse(consultados.contains(StatusOrdemServico.CANCELADA));
+        verify(ordemServicoRepository, never()).findAll();
+    }
+
     @Test
     @DisplayName("Deve listar todas as ordens de serviço")
     void deveListarTodasAsOrdensServico() {
-        when(ordemServicoRepository.findAll()).thenReturn(List.of(ordemServico));
+        when(ordemServicoRepository.findByStatusIn(anyCollection())).thenReturn(List.of(ordemServico));
         when(ordemServicoServicoRepository.findByOrdemServicoId(1L)).thenReturn(List.of());
         when(ordemServicoPecaRepository.findByOrdemServicoId(1L)).thenReturn(List.of());
 
