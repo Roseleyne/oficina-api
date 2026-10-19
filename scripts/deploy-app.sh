@@ -18,7 +18,7 @@ echo ">> [2/5] Build da imagem $IMAGE"
 docker build -t "$IMAGE" .
 
 echo ">> [3/5] Carregando imagem no cluster"
-kind load docker-image "$IMAGE" --name "$CLUSTER"
+kind load docker-image "$IMAGE" --name "$CLUSTER" || { echo "kind load falhou; importando direto no containerd do no"; docker save "$IMAGE" -o /tmp/oficina-api.tar && docker cp /tmp/oficina-api.tar "$CLUSTER-control-plane":/oficina-api.tar && docker exec "$CLUSTER-control-plane" ctr -n k8s.io images import /oficina-api.tar; }
 
 echo ">> [4/5] Aplicando manifestos da aplicacao (ConfigMap, App, HPA, Mailpit)"
 kubectl apply -f k8s/01-configmap.yaml
