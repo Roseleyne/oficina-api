@@ -2,7 +2,7 @@
 set -u
 echo ">> Instalando kind..."
 for i in 1 2 3; do
-  curl -fsSLo /tmp/kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64 && break
+  curl -fsSLo /tmp/kind https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64 && break
   echo "tentativa $i falhou, repetindo..."; sleep 5
 done
 sudo install -m 0755 /tmp/kind /usr/local/bin/kind || echo "!! kind não instalado"
