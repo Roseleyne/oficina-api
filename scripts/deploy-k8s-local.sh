@@ -31,6 +31,11 @@ if ! kubectl get secret oficina-secret -n oficina >/dev/null 2>&1; then
     --from-literal=SPRING_DATASOURCE_PASSWORD=postgres \
     --from-literal=JWT_SECRET="$(openssl rand -base64 32)"
 fi
+# Garante o token do webhook de orcamento (adicionado na Fase 2)
+if [ -z "$(kubectl get secret oficina-secret -n oficina -o jsonpath='{.data.WEBHOOK_TOKEN}')" ]; then
+  kubectl patch secret oficina-secret -n oficina \
+    -p "{\"stringData\":{\"WEBHOOK_TOKEN\":\"$(openssl rand -hex 16)\"}}"
+fi
 
 echo ">> [6/7] Aplicando manifestos"
 for f in k8s/0*.yaml; do kubectl apply -f "$f"; done

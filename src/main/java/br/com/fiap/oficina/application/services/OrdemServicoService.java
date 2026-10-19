@@ -115,6 +115,41 @@ public class OrdemServicoService {
     }
 
     /**
+     * Processa a decisao do cliente sobre o orcamento (recebida via webhook).
+     * Aprovado: AGUARDANDO_APROVACAO -> APROVADA.
+     * Recusado: AGUARDANDO_APROVACAO -> CANCELADA (pecas reservadas voltam ao estoque).
+     * Idempotente: reenvio da mesma decisao nao altera a OS.
+     */
+    @Transactional
+    public StatusOrdemServicoResponseDTO processarDecisaoOrcamento(
+            Long ordemServicoId,
+            boolean aprovado) {
+
+        OrdemServico ordemServico =
+                buscarEntidadePorId(ordemServicoId);
+
+        StatusOrdemServico destino = aprovado
+                ? StatusOrdemServico.APROVADA
+                : StatusOrdemServico.CANCELADA;
+
+        if (ordemServico.getStatus() == destino) {
+            return consultarStatus(ordemServicoId);
+        }
+
+        if (ordemServico.getStatus() != StatusOrdemServico.AGUARDANDO_APROVACAO) {
+            throw new StatusOrdemServicoInvalidoException(
+                    "Orçamento só pode ser aprovado ou recusado quando a OS está "
+                            + "AGUARDANDO_APROVACAO. Status atual: "
+                            + ordemServico.getStatus()
+            );
+        }
+
+        atualizarStatus(ordemServicoId, new AtualizarStatusOSDTO(destino));
+
+        return consultarStatus(ordemServicoId);
+    }
+
+    /**
      * Consulta a situacao atual de uma Ordem de Servico.
      */
     public StatusOrdemServicoResponseDTO consultarStatus(Long id) {
