@@ -1,8 +1,152 @@
 # Oficina API — System Integrated for Automotive Repair Shop
 
-API REST desenvolvida como MVP para o gerenciamento integrado de oficinas mecânicas (**Tech Challenge - Fase 1**), aplicando os princípios do **Domain-Driven Design (DDD)**, boas práticas de Qualidade de Software e Segurança.
+API REST desenvolvida como MVP para o gerenciamento integrado de oficinas mecânicas (**Tech Challenge - Fases 1 e 2**), aplicando os princípios do **Domain-Driven Design (DDD)**, boas práticas de Qualidade de Software e Segurança.
 
 O sistema controla o ciclo de vida completo de ordens de serviço (OS), cadastro de clientes e veículos, catálogo de serviços, gestão e reserva de peças no estoque, autenticação segura via JWT e relatórios de monitoramento de desempenho.
+
+---
+
+## 🆕 Fase 2 — Qualidade, Resiliência e Escalabilidade
+
+### Objetivos desta fase
+Evoluir a aplicação da Fase 1 para suportar o crescimento da oficina (novas unidades e picos de ordens de serviço), com:
+- **Infraestrutura escalável** em Kubernetes, com **escalabilidade automática (HPA)**;
+- **Provisionamento automatizado** (Terraform) e **deploy automatizado** (CI/CD com GitHub Actions);
+- **Código organizado** (Clean Code + portas/adaptadores) e **testes automatizados** dos fluxos críticos;
+- **Novas APIs**: abertura completa de OS, consulta de status, aprovação de orçamento via webhook, listagem priorizada e notificação de status por e-mail.
+
+### Novas APIs da Fase 2
+| Método | Endpoint | Descrição | Autenticação |
+|---|---|---|---|
+| `POST` | `/ordens-servico/completa` | Abre a OS com **cliente + veículo + serviços + peças** e retorna o **id** da OS (201). Reaproveita cliente (CPF/CNPJ) e veículo (placa). | JWT |
+| `GET` | `/ordens-servico/{id}/status` | Situação atual da OS (status, descrição e datas) | JWT |
+| `POST` | `/webhooks/orcamento` | Notificação externa de **aprovação/recusa** do orçamento. Aprovado → `APROVADA`; recusado → `CANCELADA` (peças voltam ao estoque). Idempotente. | Header `X-Webhook-Token` |
+| `GET` | `/ordens-servico` | Listagem **ordenada por prioridade**: Em Execução > Aprovada > Aguardando Aprovação > Em Diagnóstico > Recebida; mesmo status → **mais antigas primeiro**. Finalizadas, Entregues e Canceladas **não aparecem** (exclusão lógica). | JWT |
+| — | *Notificação por e-mail* | A cada abertura/mudança de status o cliente recebe e-mail (SMTP; Mailpit em dev/K8s). Envio **após o commit** da transação. | — |
+| `GET` | `/actuator/health` (`/liveness`, `/readiness`) | Health checks usados pelas probes do Kubernetes | Pública |
+
+**Mapeamento de status (enunciado → sistema):** Recebida → `RECEBIDA` · Diagnóstico → `EM_DIAGNOSTICO` · Aguardando Aprovação → `AGUARDANDO_APROVACAO` · *(aprovação do orçamento)* → `APROVADA` · Execução → `EM_EXECUCAO` · Finalizada → `FINALIZADA` · Entregue → `ENTREGUE` · *(recusa)* → `CANCELADA`.
+
+📬 **Collection Postman:** [`docs/oficina-api.postman_collection.json`](./docs/oficina-api.postman_collection.json) · 📘 **Swagger:** `http://localhost:8080/swagger-ui.html`
+
+🎥 **Vídeo demonstrativo:** _<link do YouTube (não listado)>_
+
+### Desenho da arquitetura
+
+#### Componentes da aplicação
+```mermaid
+flowchart LR
+    Cliente([Atendente / Mecânico]) -->|JWT| API
+    Externo([Sistema externo / link de aprovação]) -->|X-Webhook-Token| API
+
+    subgraph API[oficina-api · Spring Boot 4 / Java 21]
+        direction TB
+        C[Controllers REST<br/>interfaces/controllers] --> S[Casos de uso<br/>application/services]
+        S --> D[Domínio<br/>entidades, StatusOrdemServico,<br/>evento OrdemServicoStatusAlterado]
+        S --> R[Repositórios JPA<br/>infrastructure/repositories]
+        S -. publica evento .-> L[Listener pós-commit]
+        L --> P[[Porta NotificacaoClientePort]]
+        P --> E[Adaptador SMTP<br/>infrastructure/notification]
+    end
+
+    R --> DB[(PostgreSQL 16)]
+    E --> M[Mailpit / SMTP]
+```
+
+#### Infraestrutura provisionada
+```mermaid
+flowchart TB
+    subgraph TF[Terraform · infra/]
+        K[kind_cluster: oficina]
+        MS[helm: metrics-server]
+        NS[namespace: oficina]
+        SEC[Secret oficina-secret<br/>senha DB, JWT, webhook token]
+        PG[StatefulSet postgres + PVC 1Gi + Service]
+    end
+
+    subgraph K8S[Manifestos · k8s/]
+        CM[ConfigMap oficina-config]
+        DEP[Deployment oficina-api<br/>probes /actuator/health<br/>requests 100m/256Mi]
+        SVC[Service oficina-api :80]
+        HPA[HPA 1→3 réplicas<br/>CPU 60%]
+        MP[Mailpit Deployment + Service]
+    end
+
+    K --> MS & NS
+    NS --> SEC & PG
+    SEC --> DEP
+    CM --> DEP
+    DEP --> SVC
+    HPA --> DEP
+    MS -. métricas .-> HPA
+    DEP --> PG
+    DEP --> MP
+```
+
+#### Fluxo de deploy (CI/CD)
+```mermaid
+flowchart LR
+    Dev[git push / PR] --> GA{{GitHub Actions}}
+    GA --> J1[1 · Build + testes<br/>mvn verify + JaCoCo]
+    J1 --> J2[2 · Imagem Docker<br/>push GHCR]
+    J2 --> J3[3 · Deploy]
+    J3 --> T[terraform apply<br/>cluster + banco]
+    T --> A[deploy-app.sh<br/>kubectl apply k8s/]
+    A --> H[rollout status +<br/>/actuator/health UP]
+```
+> Em *pull requests* rodam os jobs 1 e 2; em *push* nas branches `fase-2`/`main` a pipeline completa (com deploy).
+
+### Estrutura de pastas da Fase 2
+```text
+.github/workflows/ci-cd.yml   # Pipeline CI/CD
+infra/                        # Terraform (cluster kind, metrics-server, namespace, secrets, PostgreSQL)
+k8s/                          # Manifestos: ConfigMap, App (Deployment+Service), HPA, Mailpit
+scripts/deploy-app.sh         # Publica a aplicação no cluster provisionado
+scripts/deploy-k8s-local.sh   # Atalho: cria cluster + aplica tudo (sem Terraform)
+docs/                         # Collection Postman
+.devcontainer/                # Ambiente de desenvolvimento (Codespaces)
+```
+
+### Execução local (Docker Compose)
+```bash
+docker compose up -d --build
+# API: http://localhost:8080/swagger-ui.html  ·  E-mails: http://localhost:8025 (Mailpit)
+```
+
+### Provisionamento da infraestrutura com Terraform
+Pré-requisitos: Docker, Terraform ≥ 1.6, kubectl e kind (já inclusos no devcontainer). Detalhes em [`infra/README.md`](./infra/README.md).
+```bash
+cd infra
+terraform init
+terraform plan
+terraform apply        # cria cluster, metrics-server, namespace, secret e PostgreSQL
+cd ..
+```
+
+### Deploy em Kubernetes
+```bash
+bash scripts/deploy-app.sh                       # build da imagem + kubectl apply dos manifestos
+kubectl get pods,svc,hpa -n oficina
+kubectl port-forward svc/oficina-api 8080:80 -n oficina
+kubectl port-forward svc/mailpit 8025:8025 -n oficina   # caixa de e-mails
+```
+Token do webhook gerado pelo Terraform:
+```bash
+kubectl get secret oficina-secret -n oficina -o jsonpath='{.data.WEBHOOK_TOKEN}' | base64 -d
+```
+
+### Demonstração da escalabilidade automática (HPA)
+```bash
+kubectl get hpa -n oficina -w            # terminal 1: acompanha as réplicas
+kubectl run carga -n oficina --rm -it --image=busybox --restart=Never -- \
+  sh -c "while true; do wget -q -O- http://oficina-api/v3/api-docs >/dev/null 2>&1; done"   # terminal 2
+```
+O HPA escala de **1 para até 3 réplicas** quando a CPU média passa de **60%** e reduz após a carga cessar.
+
+### Destruir o ambiente
+```bash
+cd infra && terraform destroy
+```
 
 ---
 
