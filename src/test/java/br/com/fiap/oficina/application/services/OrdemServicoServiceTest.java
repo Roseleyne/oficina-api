@@ -185,6 +185,65 @@ class OrdemServicoServiceTest {
     }
 
     @Test
+    @DisplayName("Webhook: orçamento aprovado leva a OS de AGUARDANDO_APROVACAO para APROVADA")
+    void deveAprovarOrcamentoViaWebhook() {
+        ordemServico.setStatus(StatusOrdemServico.AGUARDANDO_APROVACAO);
+        when(ordemServicoRepository.findById(1L)).thenReturn(Optional.of(ordemServico));
+        when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        StatusOrdemServicoResponseDTO resposta = ordemServicoService.processarDecisaoOrcamento(1L, true);
+
+        assertEquals(StatusOrdemServico.APROVADA, resposta.status());
+        verify(ordemServicoRepository).save(ordemServico);
+    }
+
+    @Test
+    @DisplayName("Webhook: orçamento recusado cancela a OS e devolve as peças ao estoque")
+    void deveRecusarOrcamentoViaWebhookEDevolverPecas() {
+        ordemServico.setStatus(StatusOrdemServico.AGUARDANDO_APROVACAO);
+
+        Peca peca = new Peca();
+        peca.setId(5L);
+        peca.setQuantidadeEstoque(10);
+        OrdemServicoPeca item = new OrdemServicoPeca();
+        item.setPeca(peca);
+        item.setQuantidade(2);
+
+        when(ordemServicoRepository.findById(1L)).thenReturn(Optional.of(ordemServico));
+        when(ordemServicoPecaRepository.findByOrdemServicoId(1L)).thenReturn(List.of(item));
+        when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        StatusOrdemServicoResponseDTO resposta = ordemServicoService.processarDecisaoOrcamento(1L, false);
+
+        assertEquals(StatusOrdemServico.CANCELADA, resposta.status());
+        assertEquals(12, peca.getQuantidadeEstoque().intValue());
+        verify(pecaRepository).save(peca);
+    }
+
+    @Test
+    @DisplayName("Webhook: reenvio da mesma decisão é idempotente (não altera a OS)")
+    void deveSerIdempotenteQuandoDecisaoJaFoiAplicada() {
+        ordemServico.setStatus(StatusOrdemServico.APROVADA);
+        when(ordemServicoRepository.findById(1L)).thenReturn(Optional.of(ordemServico));
+
+        StatusOrdemServicoResponseDTO resposta = ordemServicoService.processarDecisaoOrcamento(1L, true);
+
+        assertEquals(StatusOrdemServico.APROVADA, resposta.status());
+        verify(ordemServicoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Webhook: deve rejeitar decisão quando a OS não está aguardando aprovação")
+    void deveRejeitarDecisaoQuandoOrdemNaoAguardaAprovacao() {
+        ordemServico.setStatus(StatusOrdemServico.RECEBIDA);
+        when(ordemServicoRepository.findById(1L)).thenReturn(Optional.of(ordemServico));
+
+        assertThrows(StatusOrdemServicoInvalidoException.class,
+                () -> ordemServicoService.processarDecisaoOrcamento(1L, true));
+        verify(ordemServicoRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Status: deve retornar a situação atual da OS")
     void deveConsultarStatusDaOrdemServico() {
         ordemServico.setStatus(StatusOrdemServico.AGUARDANDO_APROVACAO);

@@ -29,6 +29,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/oficina
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      WEBHOOK_TOKEN: ${WEBHOOK_TOKEN:-dev-webhook-token}
     depends_on:
       postgres:
         condition: service_healthy

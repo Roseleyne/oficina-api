@@ -71,6 +71,12 @@ public class GlobalExceptionHandler {
         return resposta(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
+    @ExceptionHandler(WebhookNaoAutorizadoException.class)
+    public ResponseEntity<Map<String, Object>> tratarWebhookNaoAutorizado(
+            WebhookNaoAutorizadoException exception) {
+        return resposta(HttpStatus.UNAUTHORIZED, exception.getMessage());
+    }
+
     @ExceptionHandler(StatusOrdemServicoInvalidoException.class)
     public ResponseEntity<Map<String, Object>> tratarStatusInvalido(
             StatusOrdemServicoInvalidoException exception) {
